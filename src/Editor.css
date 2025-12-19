@@ -1,0 +1,224 @@
+.editor-paragraph {
+  margin: 0;
+  position: relative
+}
+
+/* ==================== 文字格式 ==================== */
+.editor-text-bold {
+  font-weight: bold;
+}
+
+.editor-text-italic {
+  font-style: italic;
+}
+
+.editor-text-underline {
+  text-decoration: underline;
+}
+
+.editor-text-strikethrough {
+  text-decoration: line-through;
+}
+
+/* ==================== 標題 ==================== */
+.editor-heading-h1 {
+  font-size: 2em;
+  font-weight: bold;
+  margin: 0.67em 0;
+}
+
+.editor-heading-h2 {
+  font-size: 1.5em;
+  font-weight: bold;
+  margin: 0.75em 0;
+}
+
+.editor-heading-h3 {
+  font-size: 1.17em;
+  font-weight: bold;
+  margin: 0.83em 0;
+}
+
+/* ==================== 列表 ==================== */
+.editor-list-ol {
+  padding-left: 20px;
+  margin: 8px 0;
+  list-style-type: decimal;
+}
+
+.editor-list-ul {
+  padding-left: 20px;
+  margin: 8px 0;
+  list-style-type: disc;
+}
+
+.editor-listitem {
+  margin: 4px 0;
+}
+
+/* ==================== 巢狀列表 ==================== */
+/* 移除巢狀列表項目的預設樣式 */
+.editor-nested-listitem {
+  list-style-type: none;
+}
+
+/* 移除 before 和 after 偽元素 */
+.editor-nested-listitem:before,
+.editor-nested-listitem:after {
+  display: none;
+}
+
+/* 巢狀列表的縮排 */
+.editor-listitem .editor-list-ol,
+.editor-listitem .editor-list-ul {
+  padding-left: 20px;
+}
+
+/* 多層級列表符號變化 */
+.editor-list-ul .editor-list-ul {
+  list-style-type: circle;
+}
+
+.editor-list-ul .editor-list-ul .editor-list-ul {
+  list-style-type: square;
+}
+
+.editor-list-ol .editor-list-ol {
+  list-style-type: lower-alpha;
+}
+
+.editor-list-ol .editor-list-ol .editor-list-ol {
+  list-style-type: lower-roman;
+}
+
+/* ==================== 連結 ==================== */
+.editor-link {
+  color: #0066cc;
+  text-decoration: none;
+}
+
+.editor-link:hover {
+  text-decoration: underline;
+}
+
+/* ==================== 對齊樣式 ==================== */
+.editor-text-left {
+  text-align: left;
+}
+
+.editor-text-center {
+  text-align: center;
+}
+
+.editor-text-right {
+  text-align: right;
+}
+
+.editor-text-justify {
+  text-align: justify;
+}
+
+/* ==================== 引用區塊 ==================== */
+blockquote {
+  border-left: 4px solid #ccc;
+  padding-left: 16px;
+  margin: 16px 0;
+  color: #666;
+}
+
+/* ==================== 工具列 ==================== */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+  flex-wrap: wrap;
+}
+
+/* 工具列按鈕 */
+.toolbar-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toolbar-item:hover {
+  background: #f5f5f5;
+  border-color: #999;
+}
+
+.toolbar-item.active {
+  background-color: #1976d2;
+  border-color: #1976d2;
+}
+
+.toolbar-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* 工具列圖示樣式 */
+.toolbar-item svg {
+  color: #333;
+  transition: color 0.2s ease;
+}
+
+.toolbar-item:hover svg {
+  color: #1976d2;
+}
+
+.toolbar-item.active svg {
+  color: white;
+}
+
+.toolbar-item:disabled svg {
+  color: #999;
+}
+
+/* 圖示容器 */
+.editor-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* 工具列分隔線 */
+.toolbar .divider {
+  width: 1px;
+  height: 24px;
+  background-color: #e0e0e0;
+  margin: 0 4px;
+}
+
+/* 工具列下拉選單 */
+.toolbar select {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  min-width: 100px;
+  transition: border-color 0.2s ease;
+}
+
+.toolbar select:hover {
+  border-color: #999;
+}
+
+.toolbar select:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
+}

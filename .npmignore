@@ -1,0 +1,24 @@
+# Source files (只發布 dist/)
+src/
+example/
+
+# Config files
+tsconfig.json
+vite.config.ts
+.gitignore
+
+# Development
+node_modules/
+*.log
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+
+# Git
+.git/
+.gitignore
