@@ -8,7 +8,7 @@
 ## 安裝
 
 ```bash
-npm install lexical-text-editor
+npm install @open-egretta/lexical-text-editor
 ```
 
 ## 使用方式
@@ -16,8 +16,8 @@ npm install lexical-text-editor
 ### 基本使用
 
 ```tsx
-import { LexicalEditor } from "lexical-text-editor";
-import type { LexicalEditorRef } from "lexical-text-editor";
+import { LexicalEditor } from "@open-egretta/lexical-text-editor";
+import type { LexicalEditorRef } from "@open-egretta/lexical-text-editor";
 import { useRef } from "react";
 
 function App() {
@@ -44,7 +44,7 @@ function App() {
 ### 載入已儲存的內容
 
 ```tsx
-import { LexicalEditor } from "lexical-text-editor";
+import { LexicalEditor } from "@open-egretta/lexical-text-editor";
 
 function App() {
   const savedContent = '{"root":{"children":[...]}}'; // 之前儲存的 JSON

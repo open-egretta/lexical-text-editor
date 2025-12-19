@@ -1,6 +1,9 @@
 import { useRef, useState } from "react";
-import { LexicalEditor, LexicalEditorRef } from "lexical-text-editor";
-import "lexical-text-editor/style.css";
+import {
+  LexicalEditor,
+  LexicalEditorRef,
+} from "@open-egretta/lexical-text-editor";
+import "@open-egretta/lexical-text-editor/style.css";
 
 function App() {
   const editorRef = useRef<LexicalEditorRef>(null);

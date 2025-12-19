@@ -10,7 +10,7 @@
   "dependencies": {
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "lexical-text-editor": "file:.."
+    "@open-egretta/lexical-text-editor": "file:.."
   },
   "devDependencies": {
     "@types/react": "^19.2.7",

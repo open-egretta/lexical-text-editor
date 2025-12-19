@@ -1,5 +1,5 @@
 {
-  "name": "lexical-text-editor",
+  "name": "@open-egretta/lexical-text-editor",
   "version": "0.0.1",
   "description": "Ready-to-use React rich text editor powered by Lexical",
   "license": "MIT",
