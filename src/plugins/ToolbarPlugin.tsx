@@ -3,22 +3,27 @@ import {
   FORMAT_TEXT_COMMAND,
   FORMAT_ELEMENT_COMMAND,
   ElementFormatType,
-  $getSelection,
-  $isRangeSelection,
+  TextFormatType,
   $createParagraphNode,
+  $createTextNode,
+  $findMatchingParent,
+  $getRoot,
+  $getSelection,
+  $insertNodes,
   $isElementNode,
+  $isRangeSelection,
   UNDO_COMMAND,
   REDO_COMMAND,
   CAN_UNDO_COMMAND,
   CAN_REDO_COMMAND,
   COMMAND_PRIORITY_CRITICAL,
+  type LexicalNode,
 } from "lexical";
 import {
   INSERT_ORDERED_LIST_COMMAND,
   INSERT_UNORDERED_LIST_COMMAND,
-  $isListNode,
-  $isListItemNode,
   ListNode,
+  ListType,
 } from "@lexical/list";
 import {
   $createHeadingNode,
@@ -27,145 +32,149 @@ import {
   $isQuoteNode,
   $createQuoteNode,
 } from "@lexical/rich-text";
+import { $createLinkNode, $isLinkNode, $toggleLink } from "@lexical/link";
+import { $createCodeNode, $isCodeNode } from "@lexical/code";
+import {
+  $deleteTableColumnAtSelection,
+  $deleteTableRowAtSelection,
+  $getTableNodeFromLexicalNodeOrThrow,
+  $insertTableColumnAtSelection,
+  $insertTableRowAtSelection,
+  $isTableCellNode,
+  $isTableSelection,
+  INSERT_TABLE_COMMAND,
+} from "@lexical/table";
 import { $setBlocksType } from "@lexical/selection";
-
 import { $getNearestNodeOfType, mergeRegister } from "@lexical/utils";
-import { useCallback, useEffect, useState } from "react";
-import { Icon, IconSet } from "../components/icons";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Icon, IconSet, IconType } from "../components/icons";
+import { $createImageNode } from "../nodes/ImageNode";
+import { normalizeImageUrl, normalizeLinkUrl } from "../utils/url";
+import { useShortcuts, type Shortcut } from "../utils/shortcut";
+import { useLocale } from "../locales/LocaleContext";
+import type { EditorLocale } from "../locales/types";
 
-type BlockType = "paragraph" | "h1" | "h2" | "h3" | "quote";
+type BlockType = "paragraph" | "h1" | "h2" | "h3" | "quote" | "code";
+
+const blockTypeLabelKeys: Record<BlockType, keyof EditorLocale> = {
+  paragraph: "blockParagraph",
+  h1: "blockH1",
+  h2: "blockH2",
+  h3: "blockH3",
+  quote: "blockQuote",
+  code: "blockCode",
+};
 
 interface ToolbarPluginProps {
   customIcons?: IconSet;
 }
 
+interface ToolbarButtonProps {
+  icon: IconType;
+  label: string;
+  shortcut?: Shortcut;
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  customIcons?: IconSet;
+}
+
+function ToolbarButton({
+  icon,
+  label,
+  shortcut,
+  onClick,
+  active = false,
+  disabled = false,
+  customIcons,
+}: ToolbarButtonProps) {
+  const shortcuts = useShortcuts();
+  const keys = shortcut ? shortcuts[shortcut] : undefined;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={active ? "toolbar-item active" : "toolbar-item"}
+      aria-label={label}
+      aria-pressed={active}
+      aria-keyshortcuts={keys?.aria}
+      title={keys ? `${label} (${keys.label})` : label}
+    >
+      <Icon type={icon} customIcons={customIcons} />
+    </button>
+  );
+}
+
+function Group({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <div className="divider" />
+      {children}
+    </>
+  );
+}
+
+function $isBlock(node: LexicalNode) {
+  return $isElementNode(node) && !node.isInline();
+}
+
 export function ToolbarPlugin({ customIcons }: ToolbarPluginProps) {
   const [editor] = useLexicalComposerContext();
+  const t = useLocale();
 
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
-  const [isBold, setIsBold] = useState(false);
-  const [isItalic, setIsItalic] = useState(false);
-  const [isUnderline, setIsUnderline] = useState(false);
+  const [formats, setFormats] = useState<Set<TextFormatType>>(new Set());
+  const [isLink, setIsLink] = useState(false);
+  const [isInTable, setIsInTable] = useState(false);
   const [blockType, setBlockType] = useState<BlockType>("paragraph");
   const [elementFormat, setElementFormat] = useState<ElementFormatType>("left");
-  const [isBulletList, setIsBulletList] = useState(false);
-  const [isNumberedList, setIsNumberedList] = useState(false);
+  const [listType, setListType] = useState<ListType | null>(null);
 
   const updateToolbar = useCallback(() => {
     const selection = $getSelection();
-    if ($isRangeSelection(selection)) {
-      // 更新文字格式狀態
-      setIsBold(selection.hasFormat("bold"));
-      setIsItalic(selection.hasFormat("italic"));
-      setIsUnderline(selection.hasFormat("underline"));
 
-      const anchorNode = selection.anchor.getNode();
-      const element =
-        anchorNode.getKey() === "root"
-          ? anchorNode
-          : anchorNode.getTopLevelElementOrThrow();
-
-      // 先重置列表狀態
-      setIsBulletList(false);
-      setIsNumberedList(false);
-
-      // 🔑 如果 element 是 ListNode
-      if ($isListNode(element)) {
-        setBlockType("paragraph");
-        const listType = element.getListType();
-        setIsBulletList(listType === "bullet");
-        setIsNumberedList(listType === "number");
-
-        // 🎯 改善的對齊狀態讀取邏輯
-        let detectedFormat: ElementFormatType = "left";
-
-        // 方法 1：從 anchorNode 的 parent 讀取
-        const parent = anchorNode.getParent();
-        if (parent && $isElementNode(parent)) {
-          const parentFormat = parent.getFormatType();
-          if (parentFormat) {
-            detectedFormat = parentFormat;
-          } else {
-            // 方法 2：如果 parent 沒有格式，嘗試從 parent 的子元素讀取
-            const parentChildren = parent.getChildren();
-            if (parentChildren.length > 0) {
-              const firstChild = parentChildren[0];
-              if ($isElementNode(firstChild)) {
-                const childFormat = firstChild.getFormatType();
-                if (childFormat) {
-                  detectedFormat = childFormat;
-                }
-              }
-            }
-          }
-        }
-
-        // 方法 3：如果都沒有，嘗試從前一個 ListItemNode 讀取（繼承）
-        if (detectedFormat === "left" && parent && $isListItemNode(parent)) {
-          const listChildren = element.getChildren();
-          const currentIndex = listChildren.indexOf(parent);
-
-          if (currentIndex > 0) {
-            // 有前一個 ListItemNode，嘗試繼承它的格式
-            const prevListItem = listChildren[currentIndex - 1];
-            if ($isElementNode(prevListItem)) {
-              const prevFormat = prevListItem.getFormatType();
-              if (prevFormat) {
-                detectedFormat = prevFormat;
-              }
-            }
-          }
-        }
-
-        setElementFormat(detectedFormat);
-      }
-      // 檢查是否是 ListItemNode
-      else if ($isListItemNode(element)) {
-        setBlockType("paragraph");
-
-        const parentList = $getNearestNodeOfType<ListNode>(
-          anchorNode,
-          ListNode
-        );
-        if (parentList) {
-          const listType = parentList.getListType();
-          setIsBulletList(listType === "bullet");
-          setIsNumberedList(listType === "number");
-        }
-
-        // ListItemNode 的對齊
-        const format = element.getFormatType();
-        setElementFormat(format || "left");
-      }
-      // 檢查標題
-      else if ($isHeadingNode(element)) {
-        setBlockType(element.getTag() as BlockType);
-        const format = element.getFormatType();
-        setElementFormat(format || "left");
-      }
-      // 檢查引用
-      else if ($isQuoteNode(element)) {
-        setBlockType("quote");
-        const format = element.getFormatType();
-        setElementFormat(format || "left");
-      }
-      // 一般段落
-      else {
-        setBlockType("paragraph");
-        if ($isElementNode(element)) {
-          const format = element.getFormatType();
-          setElementFormat(format || "left");
-        } else {
-          setElementFormat("left");
-        }
-      }
+    if ($isTableSelection(selection)) {
+      setIsInTable(true);
+      return;
     }
+    if (!$isRangeSelection(selection)) return;
+
+    const textFormats: TextFormatType[] = [
+      "bold",
+      "italic",
+      "underline",
+      "strikethrough",
+      "code",
+    ];
+    setFormats(new Set(textFormats.filter((f) => selection.hasFormat(f))));
+
+    const anchorNode = selection.anchor.getNode();
+    setIsLink($findMatchingParent(anchorNode, $isLinkNode) !== null);
+    setIsInTable($findMatchingParent(anchorNode, $isTableCellNode) !== null);
+
+    const list = $getNearestNodeOfType<ListNode>(anchorNode, ListNode);
+    setListType(list ? list.getListType() : null);
+
+    // 最近的區塊節點（段落、標題、列表項目、程式碼區塊…）決定區塊類型與對齊
+    const block = $findMatchingParent(anchorNode, $isBlock);
+    if ($isHeadingNode(block)) {
+      setBlockType(block.getTag() as BlockType);
+    } else if ($isQuoteNode(block)) {
+      setBlockType("quote");
+    } else if ($isCodeNode(block)) {
+      setBlockType("code");
+    } else {
+      setBlockType("paragraph");
+    }
+    setElementFormat(
+      ($isElementNode(block) && block.getFormatType()) || "left"
+    );
   }, []);
 
   useEffect(() => {
-    // 監聽 undo/redo 狀態變化
     return mergeRegister(
       editor.registerCommand(
         CAN_UNDO_COMMAND,
@@ -182,206 +191,292 @@ export function ToolbarPlugin({ customIcons }: ToolbarPluginProps) {
           return false;
         },
         COMMAND_PRIORITY_CRITICAL
-      )
+      ),
+      editor.registerUpdateListener(({ editorState }) => {
+        editorState.read(updateToolbar);
+      })
     );
-  }, [editor]);
-
-  useEffect(() => {
-    return editor.registerUpdateListener(({ editorState }) => {
-      editorState.read(() => {
-        updateToolbar();
-      });
-    });
   }, [editor, updateToolbar]);
 
-  const formatBold = () => {
-    editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
+  const formatText = (format: TextFormatType) => {
+    editor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
   };
 
-  const formatItalic = () => {
-    editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
-  };
-
-  const formatUnderline = () => {
-    editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline");
-  };
-
-  const formatBulletList = () => {
-    editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined);
-  };
-
-  const formatNumberedList = () => {
-    editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined);
-  };
-
-  const formatHeading = (headingType: BlockType) => {
-    if (blockType !== headingType) {
-      editor.update(() => {
-        const selection = $getSelection();
-        if ($isRangeSelection(selection)) {
-          if (headingType === "paragraph") {
-            $setBlocksType(selection, () => $createParagraphNode());
-          } else if (headingType === "quote") {
-            $setBlocksType(selection, () => $createQuoteNode());
-          } else {
-            $setBlocksType(selection, () =>
-              $createHeadingNode(headingType as HeadingTagType)
-            );
-          }
+  const formatBlock = (type: BlockType) => {
+    if (blockType === type) return;
+    editor.update(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return;
+      $setBlocksType(selection, () => {
+        switch (type) {
+          case "paragraph":
+            return $createParagraphNode();
+          case "quote":
+            return $createQuoteNode();
+          case "code":
+            return $createCodeNode();
+          default:
+            return $createHeadingNode(type as HeadingTagType);
         }
       });
+    });
+  };
+
+  const toggleLink = () => {
+    if (isLink) {
+      editor.update(() => $toggleLink(null));
+      return;
     }
+    const input = window.prompt(t.promptLinkUrl, "https://");
+    if (input === null) return;
+    const url = normalizeLinkUrl(input);
+    if (!url) {
+      window.alert(t.invalidLinkUrl);
+      return;
+    }
+    editor.update(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return;
+      if (selection.isCollapsed()) {
+        // 沒有選取文字時，直接插入以網址為文字的連結
+        selection.insertNodes([$createLinkNode(url).append($createTextNode(url))]);
+      } else {
+        $toggleLink(url);
+      }
+    });
   };
 
-  const handleUndo = () => {
-    editor.dispatchCommand(UNDO_COMMAND, undefined);
+  const insertImage = () => {
+    const input = window.prompt(t.promptImageUrl, "https://");
+    if (input === null) return;
+    const src = normalizeImageUrl(input);
+    if (!src) {
+      window.alert(t.invalidImageUrl);
+      return;
+    }
+    editor.update(() => {
+      if ($getSelection() === null) $getRoot().selectEnd();
+      $insertNodes([$createImageNode({ src })]);
+    });
   };
 
-  const handleRedo = () => {
-    editor.dispatchCommand(REDO_COMMAND, undefined);
+  const insertTable = () => {
+    editor.dispatchCommand(INSERT_TABLE_COMMAND, {
+      rows: "3",
+      columns: "3",
+      includeHeaders: { rows: true, columns: false },
+    });
   };
 
-  const blockTypeLabels: Record<BlockType, string> = {
-    paragraph: "段落",
-    h1: "標題 1",
-    h2: "標題 2",
-    h3: "標題 3",
-    quote: "引用",
+  const deleteTable = () => {
+    editor.update(() => {
+      const selection = $getSelection();
+      if (!selection) return;
+      const cell = $findMatchingParent(
+        selection.getNodes()[0],
+        $isTableCellNode
+      );
+      if (!cell) return;
+      const paragraph = $createParagraphNode();
+      $getTableNodeFromLexicalNodeOrThrow(cell).replace(paragraph);
+      paragraph.select();
+    });
   };
 
   return (
-    <div className="toolbar">
-      <button
-        onClick={handleUndo}
+    <div className="toolbar" role="toolbar" aria-label={t.toolbar}>
+      <ToolbarButton
+        icon="undo"
+        label={t.undo}
+        shortcut="undo"
+        onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
         disabled={!canUndo}
-        className="toolbar-item"
-        aria-label="復原 (Ctrl+Z)"
-        title="復原 (Ctrl+Z)"
-      >
-        <Icon type="undo" customIcons={customIcons} />
-      </button>
-      <button
-        onClick={handleRedo}
+        customIcons={customIcons}
+      />
+      <ToolbarButton
+        icon="redo"
+        label={t.redo}
+        shortcut="redo"
+        onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
         disabled={!canRedo}
-        className="toolbar-item"
-        aria-label="重做 (Ctrl+Y)"
-        title="重做 (Ctrl+Y)"
-      >
-        <Icon type="redo" customIcons={customIcons} />
-      </button>
+        customIcons={customIcons}
+      />
 
-      <div className="divider" />
+      <Group>
+        <select
+          value={blockType}
+          onChange={(e) => formatBlock(e.target.value as BlockType)}
+          className="toolbar-item block-controls"
+          aria-label={t.blockType}
+        >
+          {(Object.keys(blockTypeLabelKeys) as BlockType[]).map((type) => (
+            <option key={type} value={type}>
+              {t[blockTypeLabelKeys[type]]}
+            </option>
+          ))}
+        </select>
+      </Group>
 
-      {/* 標題選擇器 */}
-      <select
-        value={blockType}
-        onChange={(e) => formatHeading(e.target.value as BlockType)}
-        className="toolbar-item block-controls"
-      >
-        <option value="paragraph">{blockTypeLabels.paragraph}</option>
-        <option value="h1">{blockTypeLabels.h1}</option>
-        <option value="h2">{blockTypeLabels.h2}</option>
-        <option value="h3">{blockTypeLabels.h3}</option>
-        <option value="quote">{blockTypeLabels.quote}</option>
-      </select>
+      <Group>
+        <ToolbarButton
+          icon="bold"
+          label={t.bold}
+        shortcut="bold"
+          onClick={() => formatText("bold")}
+          active={formats.has("bold")}
+          customIcons={customIcons}
+        />
+        <ToolbarButton
+          icon="italic"
+          label={t.italic}
+        shortcut="italic"
+          onClick={() => formatText("italic")}
+          active={formats.has("italic")}
+          customIcons={customIcons}
+        />
+        <ToolbarButton
+          icon="underline"
+          label={t.underline}
+        shortcut="underline"
+          onClick={() => formatText("underline")}
+          active={formats.has("underline")}
+          customIcons={customIcons}
+        />
+        <ToolbarButton
+          icon="strikethrough"
+          label={t.strikethrough}
+          onClick={() => formatText("strikethrough")}
+          active={formats.has("strikethrough")}
+          customIcons={customIcons}
+        />
+        <ToolbarButton
+          icon="code"
+          label={t.inlineCode}
+          onClick={() => formatText("code")}
+          active={formats.has("code")}
+          customIcons={customIcons}
+        />
+        <ToolbarButton
+          icon={isLink ? "unlink" : "link"}
+          label={isLink ? t.removeLink : t.insertLink}
+          onClick={toggleLink}
+          active={isLink}
+          customIcons={customIcons}
+        />
+      </Group>
 
-      <div className="divider" />
+      <Group>
+        <ToolbarButton
+          icon="alignLeft"
+          label={t.alignLeft}
+          onClick={() => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "left")}
+          active={elementFormat === "left"}
+          customIcons={customIcons}
+        />
+        <ToolbarButton
+          icon="alignCenter"
+          label={t.alignCenter}
+          onClick={() =>
+            editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "center")
+          }
+          active={elementFormat === "center"}
+          customIcons={customIcons}
+        />
+        <ToolbarButton
+          icon="alignRight"
+          label={t.alignRight}
+          onClick={() =>
+            editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "right")
+          }
+          active={elementFormat === "right"}
+          customIcons={customIcons}
+        />
+        <ToolbarButton
+          icon="alignJustify"
+          label={t.alignJustify}
+          onClick={() =>
+            editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "justify")
+          }
+          active={elementFormat === "justify"}
+          customIcons={customIcons}
+        />
+      </Group>
 
-      {/* 文字格式 */}
-      <button
-        onClick={formatBold}
-        className={isBold ? "toolbar-item active" : "toolbar-item"}
-        aria-label="粗體 (Ctrl+B)"
-        title="粗體 (Ctrl+B)"
-      >
-        <Icon type="bold" customIcons={customIcons} />
-      </button>
-      <button
-        onClick={formatItalic}
-        className={isItalic ? "toolbar-item active" : "toolbar-item"}
-        aria-label="斜體 (Ctrl+I)"
-        title="斜體 (Ctrl+I)"
-      >
-        <Icon type="italic" customIcons={customIcons} />
-      </button>
-      <button
-        onClick={formatUnderline}
-        className={isUnderline ? "toolbar-item active" : "toolbar-item"}
-        aria-label="底線 (Ctrl+U)"
-        title="底線 (Ctrl+U)"
-      >
-        <Icon type="underline" customIcons={customIcons} />
-      </button>
+      <Group>
+        <ToolbarButton
+          icon="list"
+          label={t.bulletList}
+          onClick={() =>
+            editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)
+          }
+          active={listType === "bullet"}
+          customIcons={customIcons}
+        />
+        <ToolbarButton
+          icon="listOrdered"
+          label={t.numberedList}
+          onClick={() =>
+            editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined)
+          }
+          active={listType === "number"}
+          customIcons={customIcons}
+        />
+      </Group>
 
-      <div className="divider" />
+      <Group>
+        <ToolbarButton
+          icon="image"
+          label={t.insertImage}
+          onClick={insertImage}
+          customIcons={customIcons}
+        />
+        <ToolbarButton
+          icon="table"
+          label={t.insertTable}
+          onClick={insertTable}
+          disabled={isInTable}
+          customIcons={customIcons}
+        />
+      </Group>
 
-      {/* 對齊方式 */}
-      <button
-        onClick={() => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "left")}
-        className={
-          elementFormat === "left" ? "toolbar-item active" : "toolbar-item"
-        }
-        aria-label="左對齊 (Ctrl+Shift+L)"
-        title="左對齊 (Ctrl+Shift+L)"
-      >
-        <Icon type="alignLeft" customIcons={customIcons} />
-      </button>
-
-      <button
-        onClick={() => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "center")}
-        className={
-          elementFormat === "center" ? "toolbar-item active" : "toolbar-item"
-        }
-        aria-label="置中對齊 (Ctrl+Shift+E)"
-        title="置中對齊 (Ctrl+Shift+E)"
-      >
-        <Icon type="alignCenter" customIcons={customIcons} />
-      </button>
-
-      <button
-        onClick={() => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "right")}
-        className={
-          elementFormat === "right" ? "toolbar-item active" : "toolbar-item"
-        }
-        aria-label="右對齊 (Ctrl+Shift+R)"
-        title="右對齊 (Ctrl+Shift+R)"
-      >
-        <Icon type="alignRight" customIcons={customIcons} />
-      </button>
-
-      <button
-        onClick={() =>
-          editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "justify")
-        }
-        className={
-          elementFormat === "justify" ? "toolbar-item active" : "toolbar-item"
-        }
-        aria-label="兩端對齊 (Ctrl+Shift+J)"
-        title="兩端對齊 (Ctrl+Shift+J)"
-      >
-        <Icon type="alignJustify" customIcons={customIcons} />
-      </button>
-
-      <div className="divider" />
-
-      {/* 列表 */}
-      <button
-        onClick={formatBulletList}
-        className={isBulletList ? "toolbar-item active" : "toolbar-item"}
-        aria-label="項目列表"
-        title="項目列表"
-      >
-        <Icon type="list" customIcons={customIcons} />
-      </button>
-
-      <button
-        onClick={formatNumberedList}
-        className={isNumberedList ? "toolbar-item active" : "toolbar-item"}
-        aria-label="編號列表"
-        title="編號列表"
-      >
-        <Icon type="listOrdered" customIcons={customIcons} />
-      </button>
+      {isInTable && (
+        <Group>
+          <ToolbarButton
+            icon="tableRowInsert"
+            label={t.tableInsertRowBelow}
+            onClick={() => editor.update(() => $insertTableRowAtSelection(true))}
+            customIcons={customIcons}
+          />
+          <ToolbarButton
+            icon="tableColumnInsert"
+            label={t.tableInsertColumnRight}
+            onClick={() =>
+              editor.update(() => $insertTableColumnAtSelection(true))
+            }
+            customIcons={customIcons}
+          />
+          <ToolbarButton
+            icon="tableRowDelete"
+            label={t.tableDeleteRow}
+            onClick={() => editor.update(() => $deleteTableRowAtSelection())}
+            customIcons={customIcons}
+          />
+          <ToolbarButton
+            icon="tableColumnDelete"
+            label={t.tableDeleteColumn}
+            onClick={() =>
+              editor.update(() => $deleteTableColumnAtSelection())
+            }
+            customIcons={customIcons}
+          />
+          <ToolbarButton
+            icon="tableDelete"
+            label={t.tableDelete}
+            onClick={deleteTable}
+            customIcons={customIcons}
+          />
+        </Group>
+      )}
     </div>
   );
 }

@@ -24,4 +24,12 @@ export const editorTheme: EditorThemeClasses = {
     code: "editor-text-code",
   },
   link: "editor-link",
+  code: "editor-code",
+  table: "editor-table",
+  tableCell: "editor-table-cell",
+  tableCellHeader: "editor-table-cell-header",
+  tableCellSelected: "editor-table-cell-selected",
+  tableSelection: "editor-table-selection",
+  tableScrollableWrapper: "editor-table-scrollable-wrapper",
+  image: "editor-image",
 };

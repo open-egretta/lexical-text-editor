@@ -20,6 +20,98 @@
   text-decoration: line-through;
 }
 
+.editor-text-underline.editor-text-strikethrough {
+  text-decoration: underline line-through;
+}
+
+.editor-text-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background-color: #f0f2f4;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* ==================== 程式碼區塊 ==================== */
+.editor-code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  line-height: 1.5;
+  background-color: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin: 8px 0;
+  white-space: pre;
+  tab-size: 2;
+  overflow-x: auto;
+}
+
+/* 從 <pre><code> 匯入時文字會帶有 code 格式，在區塊內不需要再加底色 */
+.editor-code .editor-text-code {
+  background-color: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* ==================== 表格 ==================== */
+.editor-table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  table-layout: fixed;
+  width: max-content;
+  min-width: 100%;
+  margin: 8px 0;
+}
+
+.editor-table-cell,
+.editor-table-cell-header {
+  border: 1px solid #ccc;
+  min-width: 75px;
+  padding: 6px 8px;
+  vertical-align: top;
+  text-align: start;
+  position: relative;
+  outline: none;
+}
+
+.editor-table-cell-header {
+  background-color: #f2f3f5;
+  font-weight: bold;
+}
+
+.editor-table-cell-selected {
+  background-color: #c9dbf0;
+}
+
+.editor-table-selection *::selection {
+  background-color: transparent;
+}
+
+/* hasHorizontalScroll 時 TablePlugin 會在表格外包一層 div */
+.editor-table-scrollable-wrapper {
+  overflow-x: auto;
+}
+
+/* ==================== 圖片 ==================== */
+.editor-image {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+.editor-image img {
+  max-width: 100%;
+  height: auto;
+  cursor: default;
+}
+
+.editor-image img.editor-image-selected {
+  outline: 2px solid #1976d2;
+  outline-offset: 1px;
+}
+
 /* ==================== 標題 ==================== */
 .editor-heading-h1 {
   font-size: 2em;

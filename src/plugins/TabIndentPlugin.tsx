@@ -1,9 +1,14 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { $isCodeNode } from "@lexical/code";
 import {
   INDENT_CONTENT_COMMAND,
+  INSERT_TAB_COMMAND,
   OUTDENT_CONTENT_COMMAND,
   KEY_TAB_COMMAND,
   COMMAND_PRIORITY_EDITOR,
+  $findMatchingParent,
+  $getSelection,
+  $isRangeSelection,
 } from "lexical";
 import { useEffect } from "react";
 
@@ -11,24 +16,31 @@ export function TabIndentPlugin(): null {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
-    // 處理 Tab 鍵
-    const removeTabListener = editor.registerCommand(
+    // 表格內的 Tab 由 TablePlugin（較高優先級）處理，用來切換儲存格
+    return editor.registerCommand(
       KEY_TAB_COMMAND,
       (event: KeyboardEvent) => {
-        event.preventDefault(); // 🔑 關鍵：阻止預設行為
+        event.preventDefault();
 
-        if (event.shiftKey) {
-          // Shift + Tab = 減少縮排
-          return editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
-        } else {
-          // Tab = 增加縮排
-          return editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
+        // 程式碼區塊內：Tab 插入 TabNode（不可直接插入 "\t" 文字）
+        const selection = $getSelection();
+        if (
+          $isRangeSelection(selection) &&
+          $findMatchingParent(selection.anchor.getNode(), $isCodeNode)
+        ) {
+          if (!event.shiftKey) {
+            editor.dispatchCommand(INSERT_TAB_COMMAND, undefined);
+          }
+          return true;
         }
-      },
-      COMMAND_PRIORITY_EDITOR // 🔑 使用正確的優先級
-    );
 
-    return removeTabListener;
+        return editor.dispatchCommand(
+          event.shiftKey ? OUTDENT_CONTENT_COMMAND : INDENT_CONTENT_COMMAND,
+          undefined
+        );
+      },
+      COMMAND_PRIORITY_EDITOR
+    );
   }, [editor]);
 
   return null;

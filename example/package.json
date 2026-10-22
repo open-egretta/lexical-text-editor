@@ -8,9 +8,20 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@lexical/code": "^0.52.0",
+    "@lexical/html": "^0.52.0",
+    "@lexical/link": "^0.52.0",
+    "@lexical/list": "^0.52.0",
+    "@lexical/markdown": "^0.52.0",
+    "@lexical/react": "^0.52.0",
+    "@lexical/rich-text": "^0.52.0",
+    "@lexical/selection": "^0.52.0",
+    "@lexical/table": "^0.52.0",
+    "@lexical/utils": "^0.52.0",
+    "@open-egretta/lexical-text-editor": "file:..",
+    "lexical": "^0.52.0",
     "react": "^19.2.1",
-    "react-dom": "^19.2.1",
-    "@open-egretta/lexical-text-editor": "file:.."
+    "react-dom": "^19.2.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.7",

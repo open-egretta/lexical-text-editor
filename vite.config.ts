@@ -15,26 +15,13 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, "src/index.ts"),
       name: "LexicalTextEditor",
-      formats: ["es", "cjs"],
-      fileName: (format) => `index.${format === "es" ? "mjs" : "js"}`,
+      formats: ["es"],
+      fileName: () => "index.js",
     },
     rollupOptions: {
-      external: [
-        "react",
-        "react-dom",
-        "react/jsx-runtime",
-        "lexical",
-        "@lexical/react",
-        "@lexical/rich-text",
-        "@lexical/list",
-        "@lexical/link",
-        "@lexical/selection",
-      ],
+      // 使用正則以涵蓋子路徑（如 @lexical/react/LexicalComposer、react/jsx-runtime）
+      external: [/^react($|\/)/, /^react-dom($|\/)/, /^lexical$/, /^@lexical\//],
       output: {
-        globals: {
-          react: "React",
-          "react-dom": "ReactDOM",
-        },
         // CSS 會被打包到 dist/style.css
         assetFileNames: (assetInfo) => {
           // 改用 names (陣列) 並使用 some 來檢查是否包含 .css 檔案
